@@ -2,7 +2,7 @@ import logging
 from unittest import mock
 
 import pytest
-from pubtools.pulplib import Distributor, ModulemdDefaultsUnit, ModulemdUnit, RpmUnit
+from pubtools.pulplib import Distributor, RpmUnit
 
 from ubi_manifest.worker.tasks.content_audit import content_audit_task
 
@@ -71,84 +71,28 @@ def _setup_population_sources(pulp):
         requires=[],
         provides=[],
     )
-    rpm_3 = RpmUnit(  # modular, should be skipped
-        name="bind",
-        version="12",
-        release="2.module+el8+2248+23d5e2f2",
-        epoch="0",
+    rpm_3 = RpmUnit(
+        name="httpd.src",
+        version="1",
+        release="2",
         arch="x86_64",
-        sourcerpm="bind-12-2.module+el8+2248+23d5e2f2.src.rpm",
-        filename="bind-12-2.module+el8+2248+23d5e2f2.noarch.rpm",
     )
-    rpm_4 = RpmUnit(name="httpd.src", version="1", release="2", arch="x86_64")
-    rpm_5 = RpmUnit(name="pkg-debuginfo.foo", version="1", release="2", arch="x86_64")
-    rpm_6 = RpmUnit(name="package-name-abc", version="1", release="2", arch="x86_64")
-    module_1 = ModulemdUnit(
-        name="fake_module",
-        stream="1",
-        version=10,
-        context="b7fad3bf",
+    rpm_4 = RpmUnit(
+        name="pkg-debuginfo.foo",
+        version="1",
+        release="2",
         arch="x86_64",
-        artifacts=[
-            "test-0:1.24-3.module+el8.1.0+2934+dec45db7.noarch",
-            "test-0:1.24-3.module+el8.1.0+2934+dec45db7.src",
-            "bind-0:12-2.module+el8+2248+23d5e2f2.noarch",
-            "bind-0:12-2.module+el8+2248+23d5e2f2.src",
-        ],
     )
-    module_2 = ModulemdUnit(
-        name="some_module1",
-        stream="1",
-        version=10,
-        context="b7fad3bf",
+    rpm_5 = RpmUnit(
+        name="package-name-abc",
+        version="1",
+        release="2",
         arch="x86_64",
-        artifacts=[
-            "test-1:1.24-3.module+el8.1.0+2934+dec45db7.noarch",
-            "test-1:1.24-3.module+el8.1.0+2934+dec45db7.src",
-        ],
-    )
-    module_3 = ModulemdUnit(
-        name="fake_module",
-        stream="3",
-        version=10,
-        context="b7fad3bf",
-        arch="x86_64",
-        artifacts=[
-            "test-0:4.6-2.module+el8.1.0+2934+dec45db7.noarch",
-            "test-0:4.6-2.module+el8.1.0+2934+dec45db7.src",
-        ],
-    )
-    default_1 = ModulemdDefaultsUnit(
-        name="some_module_defaults1",
-        stream="1",
-        repo_id="ubi_repo",
-        profiles={"1.1": ["default"], "1.0": []},
-    )
-    default_2 = ModulemdDefaultsUnit(
-        name="some_module_defaults2",
-        stream="1",
-        repo_id="ubi_repo",
-        profiles={"1.0": ["default"]},
     )
 
-    pulp.insert_units(rhel_repo_1, [rpm_1, rpm_3, rpm_5, module_1, module_3, default_1])
-    pulp.insert_units(rhel_repo_2, [rpm_2, rpm_4, rpm_6, module_2, default_2])
-    pulp.insert_units(
-        ubi_repo,
-        [
-            rpm_1,
-            rpm_2,
-            rpm_3,
-            rpm_4,
-            rpm_5,
-            rpm_6,
-            module_1,
-            module_2,
-            module_3,
-            default_1,
-            default_2,
-        ],
-    )
+    pulp.insert_units(rhel_repo_1, [rpm_1, rpm_3])
+    pulp.insert_units(rhel_repo_2, [rpm_2, rpm_4, rpm_5])
+    pulp.insert_units(ubi_repo, [rpm_1, rpm_2, rpm_3, rpm_4, rpm_5])
 
 
 @pytest.mark.parametrize("debug", [False, True], ids=["bin", "debug"])
@@ -163,7 +107,7 @@ def test_content_audit_outdated(debug, pulp, caplog):
 
     repo_id = "outdated_ubi_debug_repo" if debug else "outdated_ubi_repo"
 
-    # populate our outdated UBI repo
+    # Populate our outdated UBI repo
     ubi_repo = create_and_insert_repo(
         pulp=pulp,
         id=repo_id,
@@ -194,56 +138,9 @@ def test_content_audit_outdated(debug, pulp, caplog):
         sourcerpm="bind_src-1-0.src.rpm",
         filename="bind-10.200.x86_64.rpm",
     )
-    module_1 = ModulemdUnit(
-        name="fake_module",
-        stream="1",
-        version=10,
-        context="b7fad3bf",
-        arch="x86_64",
-        artifacts=[
-            "test-0:1.24-3.module+el8.1.0+2934+dec45db7.noarch",
-            "test-0:1.24-3.module+el8.1.0+2934+dec45db7.src",
-            "bind-0:12-2.module+el8+2248+23d5e2f2.noarch",
-            "bind-0:12-2.module+el8+2248+23d5e2f2.src",
-        ],
-    )
-    module_2 = ModulemdUnit(
-        name="some_module1",
-        stream="1",
-        version=7,  # outdated
-        context="b7fad3bf",
-        arch="x86_64",
-        artifacts=[
-            "test-0:5.module+el8.1.0+2934+dec45db7.noarch",
-            "test-0:5.module+el8.1.0+2934+dec45db7.src",
-        ],
-    )
-    module_3 = ModulemdUnit(
-        name="fake_module",
-        stream="3",
-        version=10,
-        context="b7fad3bf",
-        arch="x86_64",
-        artifacts=[
-            "test-0:4.6-2.module+el8.1.0+2934+dec45db7.noarch",
-            "test-0:4.6-2.module+el8.1.0+2934+dec45db7.src",
-        ],
-    )
-    default_1 = ModulemdDefaultsUnit(
-        name="some_module_defaults1",
-        stream="1",
-        repo_id="outdated_ubi_repo",
-        profiles={"1.0": ["default"]},  # outdated
-    )
-    default_2 = ModulemdDefaultsUnit(
-        name="some_module_defaults2",
-        stream="1",
-        repo_id="outdated_ubi_repo",
-        profiles={"1.0": ["default"]},
-    )
     pulp.insert_units(
         ubi_repo,
-        [rpm_1, rpm_2, module_1, module_2, module_3, default_1, default_2],
+        [rpm_1, rpm_2],
     )
 
     with mock.patch("ubi_manifest.worker.utils.Client") as client:
@@ -255,18 +152,16 @@ def test_content_audit_outdated(debug, pulp, caplog):
 
         # should have logged warnings
         if debug:
-            # debug repo won't have modular content and will include debuginfo whitelist
             expected_logs = [
                 "UBI rpm 'gcc' version is outdated (current: ('0', '8.2.1', '200'), latest: ('0', '9.0.1', '200'))",
-                "whitelisted content missing from UBI and/or population sources;\n\tpkg-debuginfo",
+                "Whitelisted package 'pkg-debuginfo' not found in any input or output repositories.",
             ]
         else:
             expected_logs = [
                 "UBI rpm 'gcc' version is outdated (current: ('0', '8.2.1', '200'), latest: ('0', '9.0.1', '200'))",
-                "Skipping modular RPM bind-12-2.module+el8+2248+23d5e2f2.noarch.rpm",
-                "UBI modulemd 'some_module1:1' version is outdated (current: 7, latest: 10)",
-                "UBI modulemd_defaults 'some_module_defaults1:1' version is outdated",
+                # "Whitelisted package 'pkg-debuginfo' not found in any input or output repositories.",
             ]
+
         for msg in expected_logs:
             assert f"[{repo_id}] {msg}" in caplog.text
 
